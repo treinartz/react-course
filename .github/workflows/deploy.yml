@@ -1,0 +1,85 @@
+name: Deploy React Course
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build all course projects
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p _site
+
+          for project in week*-exercise week*-assignment; do
+
+            if [ ! -d "$project" ]; then
+              continue
+            fi
+
+            if [ ! -f "$project/package.json" ]; then
+              continue
+            fi
+
+            echo "Building $project"
+
+            npm ci --prefix "$project"
+
+            npm run build --prefix "$project"
+
+            mkdir -p "_site/$project"
+
+            cp -R "$project/dist/." "_site/$project/"
+
+          done
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./_site
+
+  deploy:
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
